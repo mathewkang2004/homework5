@@ -1,0 +1,166 @@
+---
+title: "Homework 5: Submission 2"
+author: "Mathew Kang"
+execute:
+  echo: false
+  warning: false
+format: 
+  pdf:
+    mainfont: "Arial"
+    geometry:
+      - margin=1in
+    include-in-header:
+      text: |
+        \usepackage{float}
+---
+
+```{r}
+#| include: false
+
+# Preliminaries
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, lubridate, modelsummary, fixest, ggplot2, knitr)
+
+# Load dataset
+hcris.mcaid <- read_csv('../../data/output/hcris-mcaid.csv') %>%
+  filter(uncomp_care > 0) %>%
+  mutate(uncomp_care_mill = uncomp_care / 1e6,
+         expand_year = year(date_adopted),
+         expand_ever = !is.na(expand_year),
+         expand_group = case_when(
+           expand_year == 2014 ~ "Expanded 2014",
+           is.na(expand_year) ~ "Never Expanded")) %>%
+  filter(year >= 2010 & year <= 2018) %>%
+  filter(!is.na(expand_group), !is.na(expand_ever))
+
+# All states for Q9 only
+hcris.all <- read_csv('../../data/output/hcris-mcaid.csv') %>%
+  filter(uncomp_care > 0) %>%
+  mutate(uncomp_care_mill = uncomp_care / 1e6,
+         expand_year = year(date_adopted)) %>%
+  filter(year >= 2010 & year <= 2018)
+```
+
+# Summarizing The Data
+
+---
+
+## Question 1
+
+```{r}
+#| label: tbl-q1
+#| tbl-pos: "H"
+
+source('../../submission2/analysis/q1.R')
+
+q1
+```
+
+## Question 2
+
+```{r}
+#| label: fig-q2
+#| fig-width: 7
+#| fig-height: 4
+#| fig-pos: "H"
+
+source('../../submission2/analysis/q2.R')
+
+q2
+```
+
+@fig-q2 shows parallel trends between states that expanded to Medicaid in 2014 and states that never expanded up to 2013. Starting in 2014, the mean uncompensated care between both groups appears to diverge, suggesting that there is a potential treatment effect indicated by the vertical gap between both groups in 2018.
+
+## Question 3
+
+```{r}
+#| label: tbl-q3
+#| tbl-pos: "H"
+
+source('../../submission2/analysis/q3.R')
+
+q3
+```
+
+## Question 4
+
+Mean uncompensated care decreased for expanded states starting in 2014 because there was a new payer source, Medicaid, that covered low-income and uninsured patients. On the other hand, the likely explanation for the increase in mean uncompensated care for non-expanders is that safety-net hospitals that received Disproportionate Share Hospital (DSH) payments began seeing a reduction in these funds following the Affordable Care Act (ACA).
+
+# Estimating ATEs
+
+---
+
+```{r}
+ate.data <- hcris.mcaid %>%
+  filter(is.na(expand_year) | expand_year == 2014) %>%
+  filter(year >= 2011, year <= 2018) %>%
+  mutate(post = (year >= 2014),
+         treat = post * expand_ever)
+```
+
+## Question 5
+
+```{r}
+#| label: tbl-q5
+#| tbl-pos: "H"
+
+source('../../submission2/analysis/q5.R')
+
+q5
+```
+
+## Question 6
+
+```{r}
+#| label: tbl-q6
+#| tbl-pos: "H"
+
+source('../../submission2/analysis/q6.R')
+
+q6
+```
+
+The results are different such that the `expand_group x post` estimate is less than the previous question.
+
+## Question 7
+
+```{r}
+#| label: tbl-q7
+#| tbl-pos: "H"
+
+source('../../submission2/analysis/q7.R')
+
+q7
+```
+
+The results are the same in @tbl-q7, but it should be different because it includes states that expanded after 2014, not just those that expanded in only 2014, creating a staggered difference-in-differences with two-way fixed effects.
+
+## Question 8
+
+```{r}
+#| label: fig-q8
+#| fig-width: 7
+#| fig-height: 4
+#| fig-pos: "H"
+
+source('../../submission2/analysis/q8.R')
+
+invisible(q8)
+```
+
+## Question 9
+
+```{r}
+#| label: fig-q9
+#| fig-width: 7
+#| fig-height: 4
+#| fig-pos: "H"
+
+source('../../submission2/analysis/q9.R')
+
+invisible(q9)
+```
+
+## Question 10
+
+According to questions 5 to 7, the regression estimates are negative and statistically significant, suggesting that Medicaid expansion significantly reduces hospital uncompensated care. While the event study in question 8 shows these effects becoming more statistically significant over time as patients gain Medicaid coverage, noisier pre-period estimates in question 9 make it difficult to assess parallel trends. A key limitation of the standard TWFE estimator is that it uses states that already expanded as the control group when estimating the effect for later-expanded states. THis leads to negative weights as shown in the TWFE coefficient in question 7, which may be misleading, given that the treatment effect is heterogeneous. Other methods discussed in class, such as Callaway-Sant'Anna or Sun-Abraham, would do a better job of addressing this bias.
